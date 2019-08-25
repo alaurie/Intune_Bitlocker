@@ -19,16 +19,19 @@
     Thanks to Rob Hawkins for the Keyprotector detection logic
     Author: Alex Laurie alex.laurie@insynctechnology.com.au
 
-    Version: 4.06
+    Version: 4.07
     Added checks for remaining protectors on decrypt and encrypt to prevent duplicates.
     Updated string formatting for eventlog entries
+    Updated formatting and functions
 
     .INPUTS
     Designed to be run from Intune as Administrator. 
-    Update parameters to change default encryption method XtsAes256
+    Update parameters to change default encryption method XtsAes128
 
     .EXAMPLE
-    .\Enable_BitLocker_with_Logging.v4.05.ps1
+    .\Enable_BitLocker_with_Logging.ps1
+    .\Enable_BitLocker_with_Logging.ps1 -encryption_strength 'XtsAes256'
+
 
 #>
 
@@ -73,8 +76,13 @@ New-EventLog -LogName Application -Source 'Intune Bitlocker Encryption Script' -
 #====================================================================================================
 #region Functions
 
-function Write-EventLogEntry 
-{
+function Write-EventLogEntry {
+  
+  <#
+    .Description
+      Writes messages and errors to the application event log to be viewed in Event Viewer
+  #>
+
   param (
     [parameter(Mandatory,HelpMessage = 'Add help message for user', Position = 0)]
     [String]
@@ -102,190 +110,301 @@ function Write-EventLogEntry
     )
     Message   = $Message
   }
+  
   Write-EventLog @log_params
+
 }
 
 
-function Get-TPMStatus 
-{
-  # Returns true/false if TPM is ready
-  $tpm = Get-Tpm
+function Get-TPMStatus {
+  
+  <#
+    .Description
+      Checks the TPM is present and ready and returns True, or returns False if either condtion fails.
+  #>
+  
+  [cmdletbinding()]
+  param(
+    [psobject]
+    $tpm = (Get-TPM)
+  )
+  
   if ($tpm.TpmReady -and $tpm.TpmPresent -eq $true) 
-  {
-    return $true
-  }
+    {
+      $true
+    }
   else 
-  {
-    return $false
-  }
+    {
+      $false
+    }
 }
 
-function Test-RecoveryPasswordProtector() 
-{
+function Test-RecoveryPasswordProtector {
+  
+  <#
+    .Description
+      Check if recovery password protector is present and return true if present or false if not.
+  #>
+  
+  [cmdletbinding()]
+  param(
+    [parameter(Mandatory)]
+    [psobject]
+    $bitlocker_volume
+  )
+
   $AllProtectors = $bitlocker_volume.KeyProtector
-  $RecoveryProtector = ($AllProtectors | Where-Object {
-      $_.KeyProtectorType -eq 'RecoveryPassword' 
-  })
-  if (($RecoveryProtector).KeyProtectorType -eq 'RecoveryPassword') 
-  {
-    Write-EventLogEntry -Message 'Recovery password protector detected'
-    return $true
-  }
-  else 
-  {
+  $RecoveryProtector = ($AllProtectors | Where-Object { $_.KeyProtectorType -eq 'RecoveryPassword' })
+  
+  if (($RecoveryProtector).KeyProtectorType -eq 'RecoveryPassword') {
+      
+      Write-EventLogEntry -Message 'Recovery password protector detected'
+      $true
+    
+    }
+  
+  else {
+    
     Write-EventLogEntry -Message 'Recovery password protector not detected'
-    return $false
-  }
+    $false
+    
+    }
+
 }
 
-function Test-TpmProtector() 
-{
+function Test-TpmProtector {
+  
+  <#
+    .Description
+      Check if a TPM protector is present and return true if present or false if not.
+  #>
+  
+  [cmdletbinding()]
+  param(
+    [parameter(Mandatory)]
+    [psobject]
+    $bitlocker_volume
+  )
+
   $AllProtectors = $bitlocker_volume.KeyProtector
-  $RecoveryProtector = ($AllProtectors | Where-Object {
-      $_.KeyProtectorType -eq 'Tpm' 
-  })
-  if (($RecoveryProtector).KeyProtectorType -eq 'Tpm') 
-  {
+  $RecoveryProtector = ($AllProtectors | Where-Object { $_.KeyProtectorType -eq 'Tpm' })
+  
+  if (($RecoveryProtector).KeyProtectorType -eq 'Tpm') {
+    
     Write-EventLogEntry -Message 'TPM protector detected'
-    return $true
+    $true
+  
   }
-  else 
-  {
+  
+  else {
+  
     Write-EventLogEntry -Message 'TPM protector not detected'
-    return $false
+    $false
+  
   }
+
 }
 
-function Set-RecoveryPasswordProtector() 
-{
-  try 
-  {
-    Add-BitLockerKeyProtector -MountPoint $OSDrive -RecoveryPasswordProtector 
-    Write-EventLogEntry -Message ('Added recovery password protector to bitlocker enabled drive {0}' -f $OSDrive)
-  }
-  catch 
-  {
+function Set-RecoveryPasswordProtector {
+  
+  <#
+    .Description
+      Add a recovery password protector to a bitlocker enabled volume
+  #>
+  
+  [cmdletbinding()]
+  param(
+    [parameter(Mandatory)]
+    [psobject]
+    $bitlocker_volume
+  )
+
+  try {
+      Add-BitLockerKeyProtector -MountPoint $bitlocker_volume -RecoveryPasswordProtector 
+      Write-EventLogEntry -Message ('Added recovery password protector to bitlocker enabled drive {0}' -f $bitlocker_volume)
+    }
+  
+  catch {
     throw Write-EventLogEntry -Message 'Error adding recovery password protector to bitlocker enabled drive' -type error
   }
 }
 
-function Set-TpmProtector() 
-{
-  try 
-  {
-    Add-BitLockerKeyProtector -MountPoint $OSDrive -TpmProtector
-    Write-EventLogEntry -Message ('Added TPM protector to bitlocker enabled drive {0}' -f $OSDrive)
+function Set-TpmProtector {
+  
+  <#
+    .Description
+      Add a TPM protector to a bitlocker enabled volume
+  #>
+  
+  [cmdletbinding()]
+  param(
+    [parameter(Mandatory)]
+    [psobject]
+    $bitlocker_volume
+  )
+  
+  try {
+    Add-BitLockerKeyProtector -MountPoint $bitlocker_volume -TpmProtector
+    Write-EventLogEntry -Message ('Added TPM protector to bitlocker enabled drive {0}' -f $bitlocker_volume)
   }
-  catch 
-  {
+  
+  catch {
     throw Write-EventLogEntry -Message 'Error adding TPM protector to bitlocker enabled drive' -type error
   }
 }
 
 
-function Backup-RecoveryPasswordProtector() 
-{
-  $AllProtectors = $bitlocker_volume.KeyProtector
-  $RecoveryProtector = ($AllProtectors | Where-Object {
-      $_.KeyProtectorType -eq 'RecoveryPassword' 
-  })
+function Backup-RecoveryPasswordProtector {
+  
+  <#
+    .Description
+      Backup recovery password protector to Azure AD
+  #>
+  
+  [cmdletbinding()]
+  param(
+    [parameter(Mandatory)]
+    [psobject]
+    $bitlocker_volume
+  )
 
-  try 
-  {
-    BackupToAAD-BitLockerKeyProtector -MountPoint $OSDrive -KeyProtectorId $RecoveryProtector.KeyProtectorID
+  $AllProtectors = $bitlocker_volume.KeyProtector
+  $RecoveryProtector = ($AllProtectors | Where-Object { $_.KeyProtectorType -eq 'RecoveryPassword' })
+
+  try {
+    BackupToAAD-BitLockerKeyProtector -MountPoint $bitlocker_volume -KeyProtectorId $RecoveryProtector.KeyProtectorID
     Write-EventLogEntry -Message 'BitLocker recovery password has been successfully backup up to Azure AD'
   }
-  catch 
-  {
+  
+  catch {
     throw Write-EventLogEntry -Message 'Error backing up recovery password to Azure AD.' -type error
   }
 }
 
-function Invoke-Encryption() 
-{
+function Invoke-Encryption {
+  
+  <#
+    .Description
+      Enable bitlocker with specified strength on volume
+  #>
+  
+  [cmdletbinding()]
+  param(
+    [parameter(Mandatory)]
+    [psobject]
+    $bitlocker_volume,
+
+    [parameter(Mandatory)]
+    [string]
+    $encryption_strength
+  )
+
   # Test that TPM is present and ready
-  try 
-  {
+  try {
     Write-EventLogEntry -Message 'Checking TPM Status before attempting encryption'
-    if (Get-TPMStatus -eq $true) 
-    {
+    
+    if (Get-TPMStatus -eq $true) {
       Write-EventLogEntry -Message 'TPM Present and Ready. Beginning encryption process'
     }
   }
-  catch 
-  {
+  
+  catch {
     throw Write-EventLogEntry -Message 'Issue with TPM. Exiting script' -type error
   }
 
+
   # Encrypting OS drive
-  try 
-  {
+  try {
     Write-EventLogEntry -Message ('Enabling bitlocker with Recovery Password protector and method {0}' -f $encryption_strength)
-    Enable-BitLocker -MountPoint $OSDrive -SkipHardwareTest -UsedSpaceOnly -EncryptionMethod $encryption_strength -RecoveryPasswordProtector
-    Write-EventLogEntry -Message ('Bitlocker enabled on {0} with {1} encryption method' -f $OSDrive, $encryption_strength)
+    Enable-BitLocker -MountPoint $bitlocker_volume -SkipHardwareTest -UsedSpaceOnly -EncryptionMethod $encryption_strength -RecoveryPasswordProtector
+    Write-EventLogEntry -Message ('Bitlocker enabled on {0} with {1} encryption method' -f $bitlocker_volume, $encryption_strength)
   }
-  catch 
-  {
-    throw Write-EventLogEntry -Message ('Error enabling bitlocker on {0}. Exiting script' -f $OSDrive)
+  
+  catch {
+    throw Write-EventLogEntry -Message ('Error enabling bitlocker on {0}. Exiting script' -f $bitlocker_volume)
   }
 }
 
-function Invoke-UnEncryption() 
-{
+function Invoke-UnEncryption {
+  
+  <#
+    .Description
+      Disable bitlocker and unencrypt volume
+  #>
+  
+  [cmdletbinding()]
+  param(
+    [parameter(Mandatory)]
+    [psobject]
+    $bitlocker_volume
+  )
+    
   # Call disable-bitlocker command, reboot after unencryption?
-  try 
-  {
-    Write-EventLogEntry -Message ('Unencrypting bitlocker enabled drive {0}' -f $OSDrive)
-    Disable-BitLocker -MountPoint $OSDrive
+  try {
+    Write-EventLogEntry -Message ('Unencrypting bitlocker enabled drive {0}' -f $bitlocker_volume)
+    Disable-BitLocker -MountPoint $bitlocker_volume
   }
-  catch 
-  {
-    throw Write-EventLogEntry -Message ('Issue unencrypting bitlocker enabled drive {0}' -f $OSDrive)
+  
+  catch {
+    throw Write-EventLogEntry -Message ('Issue unencrypting bitlocker enabled drive {0}' -f $bitlocker_volume)
   }
 }
 
-function Remove-RecoveryPasswordProtectors() 
-{
-  # Remove all recovery password protectors
-  try 
-  {
-    $RecoveryPasswordProtectors = (Get-BitLockerVolume -MountPoint $env:SystemDrive).KeyProtector | Where-Object {
-      $_.KeyProtectorType -contains 'RecoveryPassword' 
-    }
-    foreach ($PasswordProtector in $RecoveryPasswordProtectors) 
-    {
-      Remove-BitLockerKeyProtector -MountPoint $OSDrive -KeyProtectorId $($PasswordProtector).KeyProtectorID
+function Remove-RecoveryPasswordProtectors {
+  
+  <#
+    .Description
+      Remove any password protectors on bitlocker enabled volume
+  #>
+  
+  [cmdletbinding()]
+  param(
+    [parameter(Mandatory)]
+    [psobject]
+    $bitlocker_volume
+  )
+  
+  try {
+    $RecoveryPasswordProtectors = ($bitlocker_volume).KeyProtector | Where-Object { $_.KeyProtectorType -contains 'RecoveryPassword' }
+
+    foreach ($PasswordProtector in $RecoveryPasswordProtectors) {
+      Remove-BitLockerKeyProtector -MountPoint $bitlocker_volume -KeyProtectorId $($PasswordProtector).KeyProtectorID
       Write-EventLogEntry -Message ('Removed recovery password protector with ID: {0}.KeyProtectorID' -f ($PasswordProtector))
     }
   }
-  catch 
-  {
+  
+  catch {
     Write-EventLogEntry -Message 'Error removing recovery password protector' -type Error
   }
 }
 
-function Remove-TPMProtector() 
-{
+function Remove-TPMProtector { 
+  
+  <#
+    .Description
+      Remove TPM protector from bitlocker enable volume
+  #>
+  
+  [cmdletbinding()]
+  param(
+    [parameter(Mandatory)]
+    [psobject]
+    $bitlocker_volume
+  )
+
   # Remove TPM password protector
-  try 
-  {
-    $TPMProtector = (Get-BitLockerVolume -MountPoint $env:SystemDrive).KeyProtector | Where-Object {
-      $_.KeyProtectorType -contains 'Tpm' 
-    }
-    Remove-BitLockerKeyProtector -MountPoint $OSDrive -KeyProtectorId $($TPMProtector).KeyProtectorID
+  try {
+    $TPMProtector = ($bitlocker_volume).KeyProtector | Where-Object {  _.KeyProtectorType -contains 'Tpm' }
+    Remove-BitLockerKeyProtector -MountPoint $bitlocker_volume -KeyProtectorId $($TPMProtector).KeyProtectorID
     Write-EventLogEntry -Message ('Removed TPM Protector with ID: {0}.KeyProtectorID' -f ($TPMProtector))
   }
-  catch 
-  {
+  
+  catch {
     Write-EventLogEntry -Message 'Error removing recovery password protector' -type Error
   }
 }
 
-
 #endregion Functions
-
-
-
 
 #====================================================================================================
 #                                             Main-Code
@@ -295,148 +414,149 @@ function Remove-TPMProtector()
 # Start
 Write-EventLogEntry -Message 'Running bitlocker intune encryption script'
 
-# Create bitlocker volume var/object
-$bitlocker_volume = Get-BitLockerVolume -MountPoint $OSDrive
-
 # Check if OS drive is ecrpyted with parameter $encryption_strength
-if ($bitlocker_volume.VolumeStatus -eq 'FullyEncrypted' -and $bitlocker_volume.EncryptionMethod -eq $encryption_strength) 
+if ($OSDrive.VolumeStatus -eq 'FullyEncrypted' -and $OSDrive.EncryptionMethod -eq $encryption_strength) 
 {
   Write-EventLogEntry -Message ('BitLocker is already enabled on {0} and the encryption method is correct' -f $OSDrive)
 }
 
 # Drive is encrypted but does not meet set encryption method
-elseif ($bitlocker_volume.VolumeStatus -eq 'FullyEncrypted' -and $bitlocker_volume.EncryptionMethod -ne $encryption_strength) 
+elseif ($OSDrive -eq 'FullyEncrypted' -and $OSDrive.EncryptionMethod -ne $encryption_strength) 
 {
   Write-EventLogEntry -Message ('Bitlocker is enabled on {0} but the encryption method does not meet set requirements' -f $OSDrive)
-  try 
-  {
+  
+  try {
     # Decrypt OS drive
-    Invoke-UnEncryption
+    Invoke-UnEncryption -bitlocker_volume $OSDrive
         
     # Wait for decryption to finish 
-    Do 
-    {
+    Do {
       Start-Sleep -Seconds 30
     }
     until ((Get-BitLockerVolume).VolumeStatus -eq 'FullyDecrypted')
+    
     Write-EventLogEntry -Message ('{0} has been fully decrypted' -f $OSDrive)
 
     # Check for and remove any remaining recovery password protectors
-    if (Test-RecoveryPasswordProtector) 
-    {
-      try 
-      {
+    if (Test-RecoveryPasswordProtector -bitlocker_volume $OSDrive ) {
+      
+      try {
         Write-EventLogEntry -Message 'Recovery password protector found post decryption. Removing to prevent duplicate entries'
-        Remove-RecoveryPasswordProtectors
+        Remove-RecoveryPasswordProtectors -bitlocker_volume $OSDrive
       }
-      catch 
-      {
-        throw $_
+      
+      catch {
+        throw Write-EventLogEntry -Message ("Error removing recovery password protect from bitlocker volume {0} exiting script" -f $OSDrive) -type Error
+        exit
       }
     }
 
     # Check for and remaining TPM protector
-    if (Test-TpmProtector) 
-    {
-      try 
-      {
+    if (Test-TpmProtector -bitlocker_volume $OSDrive) {
+      
+      try {
         Write-EventLogEntry -Message 'TPM protector found post decryption. Removing to prevent encryption issues'
-        Remove-TPMProtector
+        Remove-TPMProtector -bitlocker_volume $OSDrive
       }
-      catch 
-      {
-        throw $_
+      
+      catch {
+        throw Write-EventLogEntry -Message ("Error removing TPM protector from bitlocker volume {0} exiting script" -f $OSDrive) -type Error`
       }
     }
 
     # Trigger encryption with specified encryption method 
-    Invoke-Encryption
+    Invoke-Encryption -bitlocker_volume $OSDrive -encryption_strength $encryption_strength
     Start-Sleep -Seconds 5
   }
-  catch 
-  {
-    throw Write-EventLogEntry -Message ('Failed on encrypting {0} after decryption' -f $OSDrive) -type error
+  
+  catch {
+    
+    throw Write-EventLogEntry -Message ('Failed to encrypt {0} after decryption. Exiting script' -f $OSDrive) -type error
+    exit
+  
   }
+
 }
 
 # Drive is not FullyDecrypted
-elseif ($bitlocker_volume.VolumeStatus -eq 'FullyDecrypted') 
-{
+elseif ($OSDrive.VolumeStatus -eq 'FullyDecrypted') {
+  
   Write-EventLogEntry -Message ('BitLocker is not enabled on {0}' -f $OSDrive)
-  try 
-  {
+  try {
+    
     # Check for and remove any remaining recovery password protectors
-    if (Test-RecoveryPasswordProtector) 
-    {
-      try 
-      {
+    if (Test-RecoveryPasswordProtector -bitlocker_volume $OSDrive) {
+      
+      try {
         Write-EventLogEntry -Message 'Recovery password protector found pre encryption. Removing to prevent duplicate entries'
-        Remove-RecoveryPasswordProtectors
+        Remove-RecoveryPasswordProtectors -bitlocker_volume $OSDrive
       }
-      catch 
-      {
-        throw $_
+      
+      catch {
+        throw Write-EventLogEntry -Message ("Error removing recovery password protector from bitlocker volume {0}. Exiting script" -f $OSDrive) -type Error 
+        exit
       }
+    
     }
 
     # Check for and remaining TPM protector
-    if (Test-TpmProtector) 
-    {
-      try 
-      {
+    if (Test-TpmProtector -bitlocker_volume $OSDrive ) {
+      try {
         Write-EventLogEntry -Message 'TPM protector found pre encryption. Removing to prevent encryption issues'
-        Remove-TPMProtector
+        Remove-TPMProtector -bitlocker_volume $OSDrive
       }
-      catch 
-      {
-        throw $_
+      
+      catch {
+        throw Write-EventLogEntry -Message ("Error removing TPM protector from bitlocker volume {0}. Exiting script" -f $OSDrive) -type Error
+        exit
       }
     }
 
     # Encrypt OS Drive with parameter $encryption_strength
-    Invoke-Encryption
+    Invoke-Encryption -bitlocker_volume $OSDrive -encryption_strength $encryption_strength
   }
-  catch 
-  {
+  
+  catch {
     throw Write-EventLogEntry -Message ('Error thrown encrypting {0}' -f $OSDrive)
   }
+
 }
 
 # Test for Recovery Password Protector. If not found, add Recovery Password Protector
-if (-not(Test-RecoveryPasswordProtector)) 
-{
-  try 
-  {
-    Set-RecoveryPasswordProtector
+if (-not(Test-RecoveryPasswordProtector -bitlocker_volume $OSDrive)) {
+  try {
+    Set-RecoveryPasswordProtector -bitlocker_volume $OSDrive
   }
-  catch 
-  {
+  
+  catch {
     throw $_
   }
+
 }
 
 # Test for TPM Protector. If not found, add TPM Protector
-if (-not(Test-TpmProtector)) 
-{
-  try 
-  {
-    Set-TpmProtector
+if (-not(Test-TpmProtector -bitlocker_volume $OSDrive)) {
+  try {
+    Set-TpmProtector -bitlocker_volume $OSDrive
   }
-  catch 
-  {
+  
+  catch {
     throw $_
   }
+  
   Write-EventLogEntry -Message 'TPM and Recovery Password protectors are present'
+
 }
 
 # Finally backup the Recovery Password to Azure AD
-try 
-{
-  Backup-RecoveryPasswordProtector
+try {
+  Backup-RecoveryPasswordProtector -bitlocker_volume $OSDrive
 }
-catch 
-{
+
+catch {
+  
   throw $_
+
 }
 
 Write-EventLogEntry -Message 'Script complete'
