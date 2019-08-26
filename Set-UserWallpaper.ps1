@@ -47,6 +47,7 @@ function Set-Wallpaper {
     )
     
     try {
+        
         Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name Wallpaper -Value $wallpaper
         
         # Sleep required to reliably refresh the desktop to the new wallpaper
@@ -67,6 +68,7 @@ function Set-Wallpaper {
 #region MainCode
 
 try {
+    
     #Download the Wallpaper to the users roaming data directory
     Write-Verbose -Message "Downloading wallpaper from specified parameter URI"
     $username = $env:USERNAME
@@ -85,3 +87,4 @@ Catch {
     throw $_
 }
 
+#endregion MainCode
