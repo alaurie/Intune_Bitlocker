@@ -17,7 +17,7 @@
     .NOTES
     Complete rewrite of MS Technet script
     Thanks to Rob Hawkins for the Keyprotector detection logic
-    Author: Alex Laurie alex.laurie@insynctechnology.com.au
+    Author: Alex Laurie alex.r.laurie@gmail.com
 
     Version: 4.07
     Added checks for remaining protectors on decrypt and encrypt to prevent duplicates.
