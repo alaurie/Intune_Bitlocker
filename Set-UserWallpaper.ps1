@@ -19,7 +19,7 @@
     URI of wallpaper to downloaded (lock down to IP range)
 
     .EXAMPLE
-    .\Set-UserWallpaper.ps1 -uri 'https://i.imgur.com/mywallpaper.jpeg
+    .\Set-UserWallpaper.ps1 -uri 'https://i.imgur.com/mywallpaper.jpeg'
 
 #>
 
