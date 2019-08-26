@@ -1,7 +1,5 @@
 # About
 
-[![License] [license-badge]] [license]
-
 Various scripts to help deploy Microsoft Intune projects.
 
 ## Enable_Bitlocker_with_Logging
