@@ -84,7 +84,7 @@ function Write-EventLogEntry {
   #>
 
   param (
-    [parameter(Mandatory,HelpMessage = 'Add help message for user', Position = 0)]
+    [parameter(Mandatory, HelpMessage = 'Add help message for user', Position = 0)]
     [String]
     $Message,
     [parameter(Position = 1)]
@@ -99,12 +99,10 @@ function Write-EventLogEntry {
     Source    = 'Intune Bitlocker Encryption Script'
     Entrytype = $type
     EventID   = $(
-      if ($type -eq 'Information') 
-      {
+      if ($type -eq 'Information') {
         Write-Output -InputObject 500 
       }
-      else 
-      {
+      else {
         Write-Output -InputObject 501 
       }
     )
@@ -129,14 +127,12 @@ function Get-TPMStatus {
     $tpm = (Get-TPM)
   )
   
-  if ($tpm.TpmReady -and $tpm.TpmPresent -eq $true) 
-    {
-      $true
-    }
-  else 
-    {
-      $false
-    }
+  if ($tpm.TpmReady -and $tpm.TpmPresent -eq $true) {
+    $true
+  }
+  else {
+    $false
+  }
 }
 
 function Test-RecoveryPasswordProtector {
@@ -158,17 +154,17 @@ function Test-RecoveryPasswordProtector {
   
   if (($RecoveryProtector).KeyProtectorType -eq 'RecoveryPassword') {
       
-      Write-EventLogEntry -Message 'Recovery password protector detected'
-      $true
+    Write-EventLogEntry -Message 'Recovery password protector detected'
+    $true
     
-    }
+  }
   
   else {
     
     Write-EventLogEntry -Message 'Recovery password protector not detected'
     $false
     
-    }
+  }
 
 }
 
@@ -220,9 +216,9 @@ function Set-RecoveryPasswordProtector {
   )
 
   try {
-      Add-BitLockerKeyProtector -MountPoint $bitlocker_volume -RecoveryPasswordProtector 
-      Write-EventLogEntry -Message ('Added recovery password protector to bitlocker enabled drive {0}' -f $bitlocker_volume)
-    }
+    Add-BitLockerKeyProtector -MountPoint $bitlocker_volume -RecoveryPasswordProtector 
+    Write-EventLogEntry -Message ('Added recovery password protector to bitlocker enabled drive {0}' -f $bitlocker_volume)
+  }
   
   catch {
     throw Write-EventLogEntry -Message 'Error adding recovery password protector to bitlocker enabled drive' -type error
@@ -394,7 +390,7 @@ function Remove-TPMProtector {
 
   # Remove TPM password protector
   try {
-    $TPMProtector = ($bitlocker_volume).KeyProtector | Where-Object {  _.KeyProtectorType -contains 'Tpm' }
+    $TPMProtector = ($bitlocker_volume).KeyProtector | Where-Object { _.KeyProtectorType -contains 'Tpm' }
     Remove-BitLockerKeyProtector -MountPoint $bitlocker_volume -KeyProtectorId $($TPMProtector).KeyProtectorID
     Write-EventLogEntry -Message ('Removed TPM Protector with ID: {0}.KeyProtectorID' -f ($TPMProtector))
   }
@@ -415,14 +411,12 @@ function Remove-TPMProtector {
 Write-EventLogEntry -Message 'Running bitlocker intune encryption script'
 
 # Check if OS drive is ecrpyted with parameter $encryption_strength
-if ($OSDrive.VolumeStatus -eq 'FullyEncrypted' -and $OSDrive.EncryptionMethod -eq $encryption_strength) 
-{
+if ($OSDrive.VolumeStatus -eq 'FullyEncrypted' -and $OSDrive.EncryptionMethod -eq $encryption_strength) {
   Write-EventLogEntry -Message ('BitLocker is already enabled on {0} and the encryption method is correct' -f $OSDrive)
 }
 
 # Drive is encrypted but does not meet set encryption method
-elseif ($OSDrive -eq 'FullyEncrypted' -and $OSDrive.EncryptionMethod -ne $encryption_strength) 
-{
+elseif ($OSDrive -eq 'FullyEncrypted' -and $OSDrive.EncryptionMethod -ne $encryption_strength) {
   Write-EventLogEntry -Message ('Bitlocker is enabled on {0} but the encryption method does not meet set requirements' -f $OSDrive)
   
   try {
