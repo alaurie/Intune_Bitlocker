@@ -430,7 +430,7 @@ elseif ($BitlockerVolume.VolumeStatus -eq 'FullyEncrypted' -and $BitlockerVolume
     Do {
       Start-Sleep -Seconds 30
     }
-    until ((Get-BitLockerVolume).VolumeStatus -eq 'FullyDecrypted')
+    until ((Get-BitLockerVolume -MountPoint $OSDrive).VolumeStatus -eq 'FullyDecrypted')
     
     Write-EventLogEntry -Message ('{0} has been fully decrypted' -f $OSDrive)
 
